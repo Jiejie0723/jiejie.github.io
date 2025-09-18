@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>每日摘抄 · 清爽页</title>
+    <meta name="description" content="每日一段优秀摘抄与实时时间展示" />
+    <style>
+      :root {
+        --bg: #f7f7f8;
+        --fg: #1f2328;
+        --muted: #69707a;
+        --card: #ffffff;
+        --accent: #3b82f6;
+      }
+
+      html, body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+        color: var(--fg);
+        background: radial-gradient(1200px 800px at 50% -10%, #ffffff, var(--bg));
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .wrap {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4vh 16px;
+      }
+
+      .card {
+        width: min(880px, 92vw);
+        background: var(--card);
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.04);
+        padding: clamp(20px, 5vw, 40px);
+      }
+
+      .title {
+        margin: 0 0 14px 0;
+        font-weight: 600;
+        font-size: clamp(16px, 2.4vw, 18px);
+        letter-spacing: 0.2px;
+        color: var(--muted);
+      }
+
+      blockquote {
+        margin: 0 0 18px 0;
+        font-size: clamp(22px, 3.4vw, 30px);
+        line-height: 1.5;
+        letter-spacing: 0.2px;
+        color: var(--fg);
+      }
+
+      .cite {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .clock {
+        margin-top: 22px;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+        color: var(--accent);
+        font-size: clamp(16px, 2.6vw, 18px);
+      }
+
+      .hint {
+        margin-top: 22px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0c0e;
+          --fg: #e6e7e9;
+          --muted: #9aa1ac;
+          --card: #0f1115;
+          --accent: #60a5fa;
+        }
+        body {
+          background: radial-gradient(1200px 800px at 50% -10%, #0f1115, #0b0c0e);
+        }
+        .card { box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.35); }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card" aria-live="polite">
+        <h1 class="title">每日摘抄</h1>
+        <blockquote id="quote">加载中…</blockquote>
+        <div id="cite" class="cite"></div>
+        <div id="clock" class="clock" aria-label="当前时间"></div>
+        <div class="hint">数据源：免费公开 API（Quotable）。每天本地缓存一次；若离线将使用内置备选。</div>
+      </section>
+    </main>
+
+    <script>
+      (function() {
+        const quoteEl = document.getElementById('quote');
+        const citeEl = document.getElementById('cite');
+        const clockEl = document.getElementById('clock');
+
+        // 每日缓存键
+        function getTodayKey() {
+          const now = new Date();
+          const y = now.getFullYear();
+          const m = String(now.getMonth() + 1).padStart(2, '0');
+          const d = String(now.getDate()).padStart(2, '0');
+          return `quote_${y}${m}${d}`;
+        }
+
+        // 备选内容（离线/请求失败时）
+        const fallbacks = [
+          { content: '读书之法，在循序而渐进，熟读而精思。', author: '朱熹' },
+          { content: '不积跬步，无以至千里；不积小流，无以成江海。', author: '荀子' },
+          { content: 'Stay hungry, stay foolish.', author: 'Steve Jobs' },
+          { content: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', author: 'Will Durant' },
+          { content: '凛冬将至，但春天终会到来。', author: '—' }
+        ];
+
+        async function fetchDailyQuote() {
+          const key = getTodayKey();
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            try {
+              const { content, author } = JSON.parse(cached);
+              return { content, author, fromCache: true };
+            } catch (_) {
+              localStorage.removeItem(key);
+            }
+          }
+
+          // 使用免费 API：Quotable 随机名言
+          // 文档：https://api.quotable.io
+          try {
+            const resp = await fetch('https://api.quotable.io/quotes/random?limit=1');
+            if (!resp.ok) throw new Error('Network response was not ok');
+            const data = await resp.json();
+            const item = Array.isArray(data) ? data[0] : data;
+            const content = item && item.content ? item.content : '';
+            const author = item && item.author ? item.author : '—';
+            if (content) {
+              localStorage.setItem(key, JSON.stringify({ content, author }));
+              return { content, author, fromCache: false };
+            }
+            throw new Error('Empty content');
+          } catch (e) {
+            // 失败时使用备选
+            const fb = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            localStorage.setItem(key, JSON.stringify(fb));
+            return { ...fb, fromCache: false };
+          }
+        }
+
+        function updateClock() {
+          const now = new Date();
+          const dateStr = new Intl.DateTimeFormat('zh-CN', {
+            year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short'
+          }).format(now);
+          const timeStr = new Intl.DateTimeFormat('zh-CN', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+          }).format(now);
+          clockEl.textContent = `${dateStr} ${timeStr}`;
+        }
+
+        // 初始化
+        (async function init() {
+          try {
+            const { content, author } = await fetchDailyQuote();
+            quoteEl.textContent = content;
+            citeEl.textContent = author ? `— ${author}` : '';
+          } catch (_) {
+            quoteEl.textContent = '今天也要元气满满 ✨';
+            citeEl.textContent = '';
+          }
+
+          updateClock();
+          setInterval(updateClock, 1000);
+        })();
+      })();
+    </script>
+  </body>
+  </html>
+
+
